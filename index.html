@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bit Hopper</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Orbitron', monospace;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            color: #00ffff;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        #gameContainer {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #gameCanvas {
+            border: 2px solid #00ffff;
+            box-shadow: 0 0 20px #00ffff44;
+            background: linear-gradient(180deg, #001122 0%, #000811 100%);
+            image-rendering: pixelated;
+            cursor: pointer;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            color: #00ffff;
+            text-shadow: 0 0 10px #00ffff;
+        }
+        
+        #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            text-align: center;
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #00ffff, #0080ff);
+            border: none;
+            color: #000;
+            padding: 15px 30px;
+            font-family: 'Orbitron', monospace;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 8px;
+            margin: 10px;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+        
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px #00ffff;
+        }
+        
+        .btn:active {
+            transform: scale(0.95);
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            font-size: 12px;
+            opacity: 0.7;
+        }
+        
+        #mobileControls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            display: none;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 100;
+        }
+        
+        .mobile-btn {
+            width: 80px;
+            height: 80px;
+            background: rgba(0, 255, 255, 0.3);
+            border: 2px solid #00ffff;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            color: #00ffff;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        
+        .mobile-btn:active {
+            background: rgba(0, 255, 255, 0.5);
+            transform: scale(0.95);
+        }
+        
+        #jumpBtn {
+            width: 100px;
+            height: 100px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .combo-text {
+            position: absolute;
+            font-size: 24px;
+            font-weight: bold;
+            color: #ff00ff;
+            text-shadow: 0 0 10px #ff00ff;
+            pointer-events: none;
+            z-index: 150;
+        }
+        
+        .overclock-mode {
+            animation: overclockPulse 0.5s infinite alternate;
+        }
+        
+        @keyframes overclockPulse {
+            0% { filter: hue-rotate(0deg) saturate(1); }
+            100% { filter: hue-rotate(60deg) saturate(1.5); }
+        }
+        
+        @media (max-width: 768px) {
+            #ui {
+                font-size: 14px;
+            }
+            .btn {
+                padding: 12px 24px;
+                font-size: 14px;
+            }
+            #mobileControls {
+                display: flex;
+            }
+            #instructions {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        
+        <div id="ui">
+            <div>스코어: <span id="score">0</span></div>
+            <div>콤보: <span id="combo">0</span></div>
+            <div>Bits: <span id="bits">0</span></div>
+            <div id="overclockTimer" style="display: none;">오버클록: <span id="overclockTime">0</span>초</div>
+        </div>
+        
+        <div id="gameOverScreen">
+            <h1 style="color: #ff0040; text-shadow: 0 0 20px #ff0040; margin-bottom: 20px;">GAME OVER</h1>
+            <div style="margin-bottom: 20px;">
+                <div>최종 스코어: <span id="finalScore">0</span></div>
+                <div>최고 스코어: <span id="bestScore">0</span></div>
+                <div>수집한 Bits: <span id="finalBits">0</span></div>
+            </div>
+            <button class="btn" onclick="restartGame()">다시하기</button>
+        </div>
+        
+        <div id="instructions">
+            PC: SPACE(점프) + A/D 또는 ←/→ (이동) | 모바일: 아래 버튼 사용<br>
+            짧게 누르면 점프, 길게 누르면 차지 점프
+        </div>
+        
+        <div id="mobileControls">
+            <div class="mobile-btn" id="leftBtn">←</div>
+            <div class="mobile-btn" id="jumpBtn">점프</div>
+            <div class="mobile-btn" id="rightBtn">→</div>
+        </div>
+    </div>
+
+    <script>
+        // Game state
+        let gameState = 'playing';
+        let score = 0;
+        let bits = 0;
+        let combo = 0;
+        let bestScore = 0;
+        let gameTime = 0;
+        let overclockTime = 0;
+        let isOverclock = false;
+        
+        // Initialize best score
+        try {
+            const saved = localStorage.getItem('bitHopperBest');
+            if (saved) bestScore = parseInt(saved);
+        } catch (e) {
+            bestScore = 0;
+        }
+        
+        // Canvas and context
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Player
+        const player = {
+            x: 200,
+            y: 500,
+            width: 16,
+            height: 16,
+            velX: 0,
+            velY: 0,
+            onGround: false,
+            charging: false,
+            chargeTime: 0
+        };
+        
+        // Game objects
+        let tiles = [];
+        let bitItems = [];
+        let particles = [];
+        let cameraY = 0;
+        let spawnY = 600;
+        
+        // Input
+        let isJumping = false;
+        let keys = {
+            left: false,
+            right: false,
+            space: false
+        };
+        
+        // Tile types
+        const TILE_NORMAL = 0;
+        const TILE_SPRING = 1;
+        const TILE_CRUMBLE = 2;
+        const TILE_CONVEYOR = 3;
+        
+        // Simple random seed
+        let seed = Date.now() % 1000000;
+        function random() {
+            seed = (seed * 9301 + 49297) % 233280;
+            return seed / 233280;
+        }
+        
+        // Initialize game
+        function init() {
+            generateInitialTiles();
+            setupInput();
+            gameLoop();
+        }
+        
+        // Generate tiles
+        function generateInitialTiles() {
+            tiles = [];
+            for (let i = 0; i < 15; i++) {
+                generateTile(600 - i * 60);
+            }
+        }
+        
+        function generateTile(y) {
+            const tileCount = Math.floor(random() * 3) + 1;
+            const totalWidth = tileCount * 50;
+            const startX = 50 + random() * (300 - totalWidth);
+            
+            for (let i = 0; i < tileCount; i++) {
+                const x = startX + i * 60;
+                let type = TILE_NORMAL;
+                
+                // Add special tiles
+                if (gameTime > 10 && random() < 0.3) {
+                    const r = random();
+                    if (r < 0.4) type = TILE_SPRING;
+                    else if (r < 0.7) type = TILE_CRUMBLE;
+                    else type = TILE_CONVEYOR;
+                }
+                
+                tiles.push({
+                    x: x,
+                    y: y,
+                    width: 50,
+                    height: 10,
+                    type: type,
+                    life: type === TILE_CRUMBLE ? 1.0 : -1,
+                    conveyorDir: type === TILE_CONVEYOR ? (random() > 0.5 ? 1 : -1) : 0
+                });
+                
+                // Add bit item
+                if (random() < 0.4) {
+                    bitItems.push({
+                        x: x + 25,
+                        y: y - 25,
+                        width: 10,
+                        height: 10,
+                        collected: false,
+                        bobOffset: random() * 6.28
+                    });
+                }
+            }
+        }
+        
+        // Input setup
+        function setupInput() {
+            // Keyboard events
+            document.addEventListener('keydown', function(e) {
+                if (e.code === 'Space' || e.key === ' ') {
+                    e.preventDefault();
+                    if (gameState === 'playing' && !keys.space) {
+                        keys.space = true;
+                        startJump();
+                    }
+                }
+                if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
+                    e.preventDefault();
+                    keys.left = true;
+                }
+                if (e.code === 'KeyD' || e.code === 'ArrowRight') {
+                    e.preventDefault();
+                    keys.right = true;
+                }
+            });
+            
+            document.addEventListener('keyup', function(e) {
+                if (e.code === 'Space' || e.key === ' ') {
+                    e.preventDefault();
+                    if (gameState === 'playing' && keys.space) {
+                        keys.space = false;
+                        endJump();
+                    }
+                }
+                if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
+                    e.preventDefault();
+                    keys.left = false;
+                }
+                if (e.code === 'KeyD' || e.code === 'ArrowRight') {
+                    e.preventDefault();
+                    keys.right = false;
+                }
+            });
+            
+            // Desktop mouse (canvas click for jump only)
+            canvas.addEventListener('mousedown', function(e) {
+                if (gameState === 'playing' && !isJumping && window.innerWidth > 768) {
+                    startJump();
+                }
+            });
+            
+            canvas.addEventListener('mouseup', function(e) {
+                if (gameState === 'playing' && isJumping && window.innerWidth > 768) {
+                    endJump();
+                }
+            });
+            
+            // Mobile controls
+            setupMobileControls();
+        }
+        
+        function setupMobileControls() {
+            const leftBtn = document.getElementById('leftBtn');
+            const rightBtn = document.getElementById('rightBtn');
+            const jumpBtn = document.getElementById('jumpBtn');
+            
+            // Left button
+            leftBtn.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                keys.left = true;
+            });
+            leftBtn.addEventListener('touchend', function(e) {
+                e.preventDefault();
+                keys.left = false;
+            });
+            leftBtn.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                keys.left = true;
+            });
+            leftBtn.addEventListener('mouseup', function(e) {
+                e.preventDefault();
+                keys.left = false;
+            });
+            
+            // Right button
+            rightBtn.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                keys.right = true;
+            });
+            rightBtn.addEventListener('touchend', function(e) {
+                e.preventDefault();
+                keys.right = false;
+            });
+            rightBtn.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                keys.right = true;
+            });
+            rightBtn.addEventListener('mouseup', function(e) {
+                e.preventDefault();
+                keys.right = false;
+            });
+            
+            // Jump button
+            jumpBtn.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                if (gameState === 'playing' && !keys.space) {
+                    keys.space = true;
+                    startJump();
+                }
+            });
+            jumpBtn.addEventListener('touchend', function(e) {
+                e.preventDefault();
+                if (gameState === 'playing' && keys.space) {
+                    keys.space = false;
+                    endJump();
+                }
+            });
+            jumpBtn.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                if (gameState === 'playing' && !keys.space) {
+                    keys.space = true;
+                    startJump();
+                }
+            });
+            jumpBtn.addEventListener('mouseup', function(e) {
+                e.preventDefault();
+                if (gameState === 'playing' && keys.space) {
+                    keys.space = false;
+                    endJump();
+                }
+            });
+        }
+        
+        function startJump() {
+            isJumping = true;
+            player.charging = true;
+            player.chargeTime = 0;
+        }
+        
+        function endJump() {
+            isJumping = false;
+            
+            keys.left = false;
+            keys.right = false;
+            keys.space = false;
+            if (player.onGround) {
+                const chargeBonus = Math.min(player.chargeTime / 30, 1); // 30 frames = 0.5 sec
+                const jumpPower = -10 - chargeBonus * 8;
+                player.velY = jumpPower;
+                player.onGround = false;
+                
+                // Jump particles
+                for (let i = 0; i < 5; i++) {
+                    particles.push({
+                        x: player.x + player.width / 2,
+                        y: player.y + player.height,
+                        velX: (random() - 0.5) * 6,
+                        velY: random() * -3,
+                        life: 30,
+                        color: '#00ffff'
+                    });
+                }
+            }
+            player.charging = false;
+            player.chargeTime = 0;
+        }
+        
+        // Main game loop
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        function update() {
+            if (gameState !== 'playing') return;
+            
+            gameTime++;
+            
+            // Charge time
+            if (player.charging) {
+                player.chargeTime++;
+            }
+            
+            // Overclock timer
+            if (isOverclock) {
+                overclockTime--;
+                if (overclockTime <= 0) {
+                    isOverclock = false;
+                    document.getElementById('overclockTimer').style.display = 'none';
+                    canvas.className = '';
+                }
+            }
+            
+            // Physics
+            player.velY += 0.6; // gravity
+            
+            // Horizontal movement
+            const moveSpeed = 3;
+            if (keys.left) {
+                player.velX -= moveSpeed;
+            }
+            if (keys.right) {
+                player.velX += moveSpeed;
+            }
+            
+            // Apply velocity
+            player.x += player.velX;
+            player.y += player.velY;
+            
+            // Air resistance and ground friction
+            if (player.onGround) {
+                player.velX *= 0.7; // Ground friction
+            } else {
+                player.velX *= 0.95; // Air resistance
+            }
+            
+            // Limit horizontal speed
+            const maxSpeed = 8;
+            if (player.velX > maxSpeed) player.velX = maxSpeed;
+            if (player.velX < -maxSpeed) player.velX = -maxSpeed;
+            
+            // Tile collision
+            player.onGround = false;
+            for (let tile of tiles) {
+                if (player.x < tile.x + tile.width && 
+                    player.x + player.width > tile.x &&
+                    player.y < tile.y + tile.height && 
+                    player.y + player.height > tile.y) {
+                    
+                    if (player.velY > 0 && player.y < tile.y) {
+                        player.y = tile.y - player.height;
+                        player.velY = 0;
+                        player.onGround = true;
+                        
+                        // Handle tile effects
+                        if (tile.type === TILE_SPRING) {
+                            player.velY = -15;
+                            player.onGround = false;
+                        } else if (tile.type === TILE_CONVEYOR) {
+                            player.velX += tile.conveyorDir * 1.5;
+                        }
+                        
+                        // Score and combo
+                        combo++;
+                        score += 10 * (isOverclock ? 2 : 1);
+                        
+                        // Overclock mode
+                        if (combo >= 5 && combo % 5 === 0) {
+                            isOverclock = true;
+                            overclockTime = 300; // 5 seconds at 60fps
+                            document.getElementById('overclockTimer').style.display = 'block';
+                            canvas.className = 'overclock-mode';
+                        }
+                    }
+                }
+            }
+            
+            // Update crumbling tiles
+            for (let tile of tiles) {
+                if (tile.type === TILE_CRUMBLE && tile.life > 0) {
+                    if (player.onGround && 
+                        player.x < tile.x + tile.width && 
+                        player.x + player.width > tile.x &&
+                        Math.abs(player.y + player.height - tile.y) < 5) {
+                        tile.life -= 0.02;
+                    }
+                }
+            }
+            
+            // Remove crumbled tiles
+            tiles = tiles.filter(function(tile) {
+                return tile.type !== TILE_CRUMBLE || tile.life > 0;
+            });
+            
+            // Bit collection
+            for (let bit of bitItems) {
+                if (!bit.collected &&
+                    player.x < bit.x + bit.width && 
+                    player.x + player.width > bit.x &&
+                    player.y < bit.y + bit.height && 
+                    player.y + player.height > bit.y) {
+                    
+                    bit.collected = true;
+                    bits++;
+                    score += 50 * (isOverclock ? 2 : 1);
+                    
+                    // Bit particles
+                    for (let i = 0; i < 8; i++) {
+                        particles.push({
+                            x: bit.x + bit.width / 2,
+                            y: bit.y + bit.height / 2,
+                            velX: (random() - 0.5) * 8,
+                            velY: (random() - 0.5) * 8,
+                            life: 40,
+                            color: '#ffff00'
+                        });
+                    }
+                }
+            }
+            
+            // Camera follow
+            const targetY = player.y - 400;
+            cameraY += (targetY - cameraY) * 0.1;
+            
+            // Generate new tiles
+            while (spawnY > player.y - 800) {
+                spawnY -= 60 + random() * 40;
+                generateTile(spawnY);
+            }
+            
+            // Clean up
+            tiles = tiles.filter(function(tile) {
+                return tile.y < cameraY + 700;
+            });
+            bitItems = bitItems.filter(function(bit) {
+                return bit.y < cameraY + 700;
+            });
+            
+            // Update particles
+            for (let particle of particles) {
+                particle.x += particle.velX;
+                particle.y += particle.velY;
+                particle.velY += 0.3;
+                particle.life--;
+            }
+            particles = particles.filter(function(p) {
+                return p.life > 0;
+            });
+            
+            // Boundaries
+            if (player.x < 0) {
+                player.x = 0;
+                player.velX = 0;
+            }
+            if (player.x + player.width > 400) {
+                player.x = 400 - player.width;
+                player.velX = 0;
+            }
+            
+            // Game over
+            if (player.y > cameraY + 650) {
+                gameOver();
+            }
+            
+            // Update UI
+            updateUI();
+        }
+        
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('combo').textContent = combo;
+            document.getElementById('bits').textContent = bits;
+            if (isOverclock) {
+                document.getElementById('overclockTime').textContent = Math.ceil(overclockTime / 60);
+            }
+        }
+        
+        function render() {
+            // Clear
+            ctx.fillStyle = isOverclock ? '#220044' : '#001122';
+            ctx.fillRect(0, 0, 400, 600);
+            
+            // Circuit background
+            ctx.strokeStyle = isOverclock ? '#ff00aa33' : '#00ffff22';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 400; i += 40) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, 600);
+                ctx.stroke();
+            }
+            for (let i = 0; i < 600; i += 40) {
+                const y = i - (cameraY % 40);
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(400, y);
+                ctx.stroke();
+            }
+            
+            ctx.save();
+            ctx.translate(0, -cameraY);
+            
+            // Draw tiles
+            for (let tile of tiles) {
+                let color = '#0080ff';
+                if (tile.type === TILE_SPRING) color = '#00ff00';
+                else if (tile.type === TILE_CRUMBLE) {
+                    color = '#ffaa00';
+                    if (tile.life < 0.5) {
+                        ctx.globalAlpha = tile.life * 2;
+                    }
+                }
+                else if (tile.type === TILE_CONVEYOR) color = '#ff00ff';
+                
+                ctx.fillStyle = color;
+                ctx.fillRect(tile.x, tile.y, tile.width, tile.height);
+                
+                // Glow
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = color;
+                ctx.fillRect(tile.x, tile.y, tile.width, tile.height);
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1;
+                
+                // Conveyor arrows
+                if (tile.type === TILE_CONVEYOR) {
+                    ctx.fillStyle = '#ffffff';
+                    const centerY = tile.y + tile.height / 2;
+                    for (let x = tile.x + 10; x < tile.x + tile.width - 10; x += 15) {
+                        const dir = tile.conveyorDir;
+                        ctx.beginPath();
+                        ctx.moveTo(x, centerY);
+                        ctx.lineTo(x + dir * 4, centerY - 2);
+                        ctx.lineTo(x + dir * 4, centerY + 2);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                }
+            }
+            
+            // Draw bits
+            for (let bit of bitItems) {
+                if (!bit.collected) {
+                    const bobY = bit.y + Math.sin((gameTime + bit.bobOffset) * 0.1) * 3;
+                    ctx.fillStyle = '#ffff00';
+                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = '#ffff00';
+                    
+                    ctx.save();
+                    ctx.translate(bit.x + bit.width / 2, bobY + bit.height / 2);
+                    ctx.rotate(gameTime * 0.05);
+                    ctx.fillRect(-bit.width / 2, -bit.height / 2, bit.width, bit.height);
+                    ctx.restore();
+                    
+                    ctx.shadowBlur = 0;
+                }
+            }
+            
+            // Draw particles
+            for (let particle of particles) {
+                ctx.globalAlpha = particle.life / 40;
+                ctx.fillStyle = particle.color;
+                ctx.fillRect(particle.x - 1, particle.y - 1, 3, 3);
+            }
+            ctx.globalAlpha = 1;
+            
+            // Draw player
+            ctx.fillStyle = isOverclock ? '#ff00aa' : '#00ffff';
+            ctx.shadowBlur = player.charging ? 15 : 8;
+            ctx.shadowColor = isOverclock ? '#ff00aa' : '#00ffff';
+            
+            if (player.charging) {
+                const scale = 1 + (player.chargeTime / 60);
+                ctx.save();
+                ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
+                ctx.scale(scale, scale);
+                ctx.fillRect(-player.width / 2, -player.height / 2, player.width, player.height);
+                ctx.restore();
+            } else {
+                ctx.fillRect(player.x, player.y, player.width, player.height);
+            }
+            
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+        
+        function gameOver() {
+            gameState = 'gameOver';
+            
+            if (score > bestScore) {
+                bestScore = score;
+                try {
+                    localStorage.setItem('bitHopperBest', bestScore.toString());
+                } catch (e) {
+                    // Ignore storage errors
+                }
+            }
+            
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('bestScore').textContent = bestScore;
+            document.getElementById('finalBits').textContent = bits;
+            document.getElementById('gameOverScreen').style.display = 'flex';
+        }
+        
+        function restartGame() {
+            gameState = 'playing';
+            score = 0;
+            bits = 0;
+            combo = 0;
+            gameTime = 0;
+            overclockTime = 0;
+            isOverclock = false;
+            cameraY = 0;
+            spawnY = 600;
+            
+            player.x = 200;
+            player.y = 500;
+            player.velX = 0;
+            player.velY = 0;
+            player.onGround = false;
+            player.charging = false;
+            player.chargeTime = 0;
+            
+            isJumping = false;
+            
+            tiles = [];
+            bitItems = [];
+            particles = [];
+            
+            seed = Date.now() % 1000000;
+            generateInitialTiles();
+            
+            document.getElementById('gameOverScreen').style.display = 'none';
+            document.getElementById('overclockTimer').style.display = 'none';
+            canvas.className = '';
+            
+            updateUI();
+        }
+        
+        // Start game
+        window.addEventListener('load', function() {
+            init();
+        });
+    </script>
+</body>
+</html>
